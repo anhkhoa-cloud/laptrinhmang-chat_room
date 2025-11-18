@@ -323,3 +323,69 @@ const ChatRoom = () => {
                   📎 {message.file.originalName} ({(message.file.fileSize / 1024).toFixed(2)} KB)
                 </a>
               </div>
+            )}
+            {message.senderId === user.id && (
+              <button
+                onClick={() => deleteMessage(message.id)}
+                className="btn-delete-message"
+                title="Xóa tin nhắn"
+              >
+                🗑️
+              </button>
+            )}
+          </div>
+        ))}
+        {typingUsers.length > 0 && (
+          <div className="typing-indicator">
+            {typingUsers.join(', ')} {typingUsers.length === 1 ? 'đang nhập...' : 'đang nhập...'}
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="message-input-container">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
+        {selectedFile && (
+          <div className="selected-file">
+            📎 {selectedFile.name}
+            <button onClick={() => {
+              setSelectedFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}>✕</button>
+          </div>
+        )}
+        <input
+          type="text"
+          value={newMessage}
+          onChange={(e) => {
+            setNewMessage(e.target.value);
+            handleTyping();
+          }}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              sendMessage();
+            }
+          }}
+          placeholder="Nhập tin nhắn..."
+          className="message-input"
+        />
+        <button 
+          onClick={() => fileInputRef.current?.click()} 
+          className="btn-attach"
+          title="Đính kèm tệp"
+        >
+          📎
+        </button>
+        <button onClick={sendMessage} className="btn-send">Gửi</button>
+      </div>
+    </div>
+  );
+};
+
+export default ChatRoom;
+
