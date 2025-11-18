@@ -145,3 +145,195 @@ const DirectMessages = () => {
       return [];
     }
   };
+const connectWebSocket = () => {
+    const socket = new SockJS(SOCKJS_ENDPOINT);
+    const stompClient = new Client({
+      webSocketFactory: () => socket,
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      connectHeaders: {
+        Authorization: `Bearer ${token}`
+      },
+      onConnect: () => {
+        console.log('✅ Connected to WebSocket for direct messages');
+        console.log('Current user ID:', user.id);
+        
+        // expose stomp client to CallContext for CallModal/useWebRTC
+        try {
+          const { stompClientRef: ccRef, setCallAccepted } = require('../../context/CallContext');
+        } catch {}
+        // assign via hook instead (below we use useCall)
+        
+        // Subscribe to personal message queue - receive all messages for current user
+        // Note: Spring WebSocket automatically converts /user/queue/messages to /user/{userId}/queue/messages
+        const subscription = stompClient.subscribe(`/user/queue/messages`, (message) => {
+          try {
+            console.log('📨 Raw WebSocket message received:', message);
+            console.log('📨 Message body:', message.body);
+            
+            const newMessage = JSON.parse(message.body);
+            console.log('✅ Parsed direct message:', newMessage);
+            console.log('   - Sender ID:', newMessage.senderId);
+            console.log('   - Receiver ID:', newMessage.receiverId);
+            console.log('   - Current user ID:', user.id);
+            
+            // Check if this message is for current user
+            const isForCurrentUser = newMessage.senderId === user.id || 
+                                     newMessage.receiverId === user.id;
+            
+            if (!isForCurrentUser) {
+              console.log('❌ Message not for current user, ignoring');
+              return;
+            }
+            
+            setMessages(prev => {
+              // Check if message already exists (avoid duplicates)
+              const existingIndex = prev.findIndex(m => 
+                m.id === newMessage.id || 
+                (m.id && m.id > 1000000000000 && newMessage.id && newMessage.id < 1000000000000 && 
+                 m.content === newMessage.content && 
+                 m.senderId === newMessage.senderId && 
+                 m.receiverId === newMessage.receiverId)
+              );
+              
+              if (existingIndex >= 0) {
+                console.log('🔄 Updating existing message (replacing temp message)');
+                // Update existing message (replace temp message with real one)
+                const updated = [...prev];
+                updated[existingIndex] = newMessage;
+                return updated.sort((a, b) => 
+                  new Date(a.timestamp) - new Date(b.timestamp)
+                );
+              }
+              
+              // Get current selected user from ref (always latest)
+              const currentSelectedUser = selectedUserRef.current;
+              
+              // Determine the other user in this conversation
+              const otherUserId = newMessage.senderId === user.id 
+                ? newMessage.receiverId 
+                : newMessage.senderId;
+              
+              console.log('   - Other user ID:', otherUserId);
+              console.log('   - Current selected user:', currentSelectedUser?.id);
+              
+              // Auto-select conversation if this is an INCOMING message and no conversation selected
+              if (!currentSelectedUser && otherUserId && newMessage.senderId !== user.id) {
+                console.log('🔄 Incoming message! Auto-selecting conversation with user:', otherUserId);
+                isAutoSelectingRef.current = true;
+                
+                const otherUser = usersRef.current.find(u => u.id === otherUserId);
+                if (otherUser) {
+                  console.log('✅ Found user in friends list, auto-selecting:', otherUser.username);
+                  // Update ref immediately
+                  selectedUserRef.current = otherUser;
+                  setSelectedUser(otherUser);
+                } else {
+                  console.log('⚠️ User not in friends list, fetching...');
+                  fetchUsers().then(friendsList => {
+                    const foundUser = friendsList.find(u => u.id === otherUserId);
+                    if (foundUser) {
+                      console.log('✅ Found user after fetch, auto-selecting:', foundUser.username);
+                      selectedUserRef.current = foundUser;
+                      setSelectedUser(foundUser);
+                    }
+                  });
+                }
+              }
+              
+              // Re-check selected user after potential auto-select
+              const updatedSelectedUser = selectedUserRef.current;
+              
+              // Check if message belongs to current conversation
+              const isForCurrentConversation = updatedSelectedUser && 
+                (newMessage.senderId === updatedSelectedUser.id || 
+                 newMessage.receiverId === updatedSelectedUser.id);
+              
+              // ALWAYS add message to state if it's for current user
+              // The display logic will filter by selectedUser
+              console.log('✅ Adding message to state (always store messages for current user)');
+              
+              // Check if we should auto-select conversation
+              if (!updatedSelectedUser && otherUserId && newMessage.senderId !== user.id) {
+                // This case was already handled above, but we still need to add the message
+                isAutoSelectingRef.current = false; // Reset flag after auto-selection
+              }
+              
+              // Always add the message to state
+              const newMessages = [...prev, newMessage];
+              const sorted = newMessages.sort((a, b) => 
+                new Date(a.timestamp) - new Date(b.timestamp)
+              );
+              console.log('   - Total messages in state after add:', sorted.length);
+              
+              // If this is for current conversation or no conversation selected, it will be displayed
+              if (isForCurrentConversation || !updatedSelectedUser) {
+                console.log('   - Message will be displayed (current conversation or no selection)');
+              } else {
+                console.log('   - Message stored but not displayed (different conversation)');
+              }
+              
+              return sorted;
+            });
+          } catch (error) {
+            console.error('❌ Error parsing WebSocket message:', error);
+            console.error('   - Message body:', message.body);
+            console.error('   - Error stack:', error.stack);
+          }
+        });
+        
+        console.log('✅ Subscribed to /user/queue/messages for user:', user.id);
+        console.log('   - Subscription active:', subscription);
+        
+        // Subscribe to call events
+        const callSubscription = stompClient.subscribe('/user/queue/call', (message) => {
+          try {
+            const data = JSON.parse(message.body);
+            console.log('📞 Call event received:', data);
+            
+            if (data.type === 'call-offer') {
+              setIncomingCall({
+                callerId: data.callerId,
+                callerUsername: data.callerUsername,
+                callType: data.callType
+              });
+              setCallType(data.callType);
+            } else if (data.type === 'call-accepted') {
+              // mark call accepted to start timer
+              if (setCallAccepted) setCallAccepted(true);
+            } else if (data.type === 'call-rejected') {
+              alert('Cuộc gọi đã bị từ chối');
+              if (setCallAccepted) setCallAccepted(false);
+              endCall();
+            } else if (data.type === 'call-ended') {
+              if (setCallAccepted) setCallAccepted(false);
+              endCall();
+            }
+          } catch (error) {
+            console.error('Error parsing call event:', error);
+          }
+        });
+        
+        console.log('✅ Subscribed to /user/queue/call for user:', user.id);
+      },
+      onStompError: (frame) => {
+        console.error('❌ STOMP error:', frame);
+        console.error('   - Command:', frame.command);
+        console.error('   - Headers:', frame.headers);
+        console.error('   - Body:', frame.body);
+      },
+      onDisconnect: () => {
+        console.log('⚠️ WebSocket disconnected');
+      },
+      onWebSocketError: (error) => {
+        console.error('❌ WebSocket error:', error);
+      },
+      debug: (str) => {
+        console.log('🔍 STOMP debug:', str);
+      }
+    });
+
+    stompClient.activate();
+    stompClientRef.current = stompClient;
+  };
