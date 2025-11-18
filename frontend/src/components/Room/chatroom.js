@@ -73,3 +73,46 @@ const ChatRoom = () => {
       connectHeaders: {
         Authorization: `Bearer ${token}`
       },
+      onConnect: () => {
+        console.log('Connected to WebSocket');
+        
+        // Subscribe to room messages
+        stompClient.subscribe(`/topic/room/${roomId}`, (message) => {
+          const newMessage = JSON.parse(message.body);
+          setMessages(prev => [...prev, newMessage]);
+        });
+
+        // Subscribe to typing indicators
+        stompClient.subscribe(`/topic/room/${roomId}/typing`, (message) => {
+          const typingInfo = JSON.parse(message.body);
+          if (typingInfo.isTyping) {
+            setTypingUsers(prev => {
+              if (!prev.includes(typingInfo.username)) {
+                return [...prev, typingInfo.username];
+              }
+              return prev;
+            });
+          } else {
+            setTypingUsers(prev => prev.filter(u => u !== typingInfo.username));
+          }
+        });
+      },
+      onStompError: (frame) => {
+        console.error('STOMP error', frame);
+      }
+    });
+
+    stompClient.activate();
+    stompClientRef.current = stompClient;
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        alert('File size must be less than 50MB');
+        return;
+      }
+      setSelectedFile(file);
+    }
+  };
