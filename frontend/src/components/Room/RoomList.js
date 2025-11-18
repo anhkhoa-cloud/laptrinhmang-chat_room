@@ -95,3 +95,82 @@ const RoomList = () => {
   const isCreator = (room) => {
     return room.createdById === user.id;
   };
+
+  return (
+    <div className="room-list-container">
+      <div className="room-list-header">
+        <h1>Chat Rooms</h1>
+        <div className="header-actions">
+          <button onClick={() => navigate('/profile')} className="btn-secondary">
+            Hồ sơ
+          </button>
+          <button onClick={() => navigate('/friends')} className="btn-secondary">
+            Bạn bè
+          </button>
+          <button onClick={() => navigate('/direct-messages')} className="btn-secondary">
+            Tin nhắn
+          </button>
+          <button onClick={logout} className="btn-logout">
+            Đăng xuất ({user.username})
+          </button>
+        </div>
+      </div>
+
+      <div className="room-list-content">
+        <div className="room-section">
+          <div className="section-header">
+            <h2>My Rooms</h2>
+            <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary">
+              {showCreateForm ? 'Cancel' : 'Create Room'}
+            </button>
+          </div>
+
+          {showCreateForm && (
+            <form onSubmit={createRoom} className="create-room-form">
+              <input
+                type="text"
+                placeholder="Room name"
+                value={newRoomName}
+                onChange={(e) => setNewRoomName(e.target.value)}
+                required
+              />
+              <button type="submit" className="btn-primary">Create</button>
+            </form>
+          )}
+
+          <div className="rooms-grid">
+            {myRooms.map(room => (
+              <div key={room.id} className="room-card">
+                <div className="room-card-header">
+                  <h3>{room.name}</h3>
+                  {room.isLocked && <span className="locked-badge">🔒 Locked</span>}
+                </div>
+                <p className="room-info">
+                  Created by: {room.createdByUsername || 'Unknown'} | 
+                  Members: {room.memberCount || 0}
+                </p>
+                <div className="room-actions">
+                  <button onClick={() => navigate(`/room/${room.id}`)} className="btn-primary">
+                    Enter Room
+                  </button>
+                  <button onClick={() => leaveRoom(room.id)} className="btn-danger">
+                    Leave
+                  </button>
+                  {isCreator(room) && (
+                    <>
+                      {room.isLocked ? (
+                        <button onClick={() => unlockRoom(room.id)} className="btn-secondary">
+                          Unlock
+                        </button>
+                      ) : (
+                        <button onClick={() => lockRoom(room.id)} className="btn-secondary">
+                          Lock
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
