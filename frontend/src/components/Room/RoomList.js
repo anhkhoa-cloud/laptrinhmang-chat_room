@@ -174,3 +174,34 @@ const RoomList = () => {
             ))}
           </div>
         </div>
+
+        <div className="room-section">
+          <h2>All Rooms</h2>
+          <div className="rooms-grid">
+            {rooms.filter(room => !isMember(room.id)).map(room => (
+              <div key={room.id} className="room-card">
+                <div className="room-card-header">
+                  <h3>{room.name}</h3>
+                  {room.isLocked && <span className="locked-badge">🔒 Locked</span>}
+                </div>
+                <p className="room-info">
+                  Created by: {room.createdByUsername || 'Unknown'} | 
+                  Members: {room.memberCount || 0}
+                </p>
+                <div className="room-actions">
+                  {!room.isLocked && (
+                    <button onClick={() => joinRoom(room.id)} className="btn-primary">
+                      Join Room
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RoomList;
