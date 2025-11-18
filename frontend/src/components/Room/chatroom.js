@@ -152,3 +152,174 @@ const ChatRoom = () => {
         alert('Failed to upload file. Please try again.');
         return;
       }
+   }
+
+    if (stompClientRef.current?.connected) {
+      const payload = {
+        roomId: parseInt(roomId),
+        content: newMessage || (selectedFile ? `📎 ${selectedFile.name}` : '')
+      };
+      if (fileId) {
+        payload.fileId = fileId;
+      }
+
+      stompClientRef.current.publish({
+        destination: '/app/chat.sendMessage',
+        body: JSON.stringify(payload),
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      setNewMessage('');
+      stopTyping();
+    }
+  };
+
+  const handleTyping = () => {
+    if (!isTyping && stompClientRef.current?.connected) {
+      setIsTyping(true);
+      stompClientRef.current.publish({
+        destination: '/app/chat.typing',
+        body: JSON.stringify({
+          roomId: parseInt(roomId),
+          isTyping: true
+        }),
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      stopTyping();
+    }, 3000);
+  };
+
+  const stopTyping = () => {
+    if (isTyping && stompClientRef.current?.connected) {
+      setIsTyping(false);
+      stompClientRef.current.publish({
+        destination: '/app/chat.typing',
+        body: JSON.stringify({
+          roomId: parseInt(roomId),
+          isTyping: false
+        }),
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    try {
+      await apiClient.delete(`/api/messages/${messageId}`);
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch (error) {
+      alert('Error deleting message: ' + (error.response?.data || error.message));
+    }
+  };
+
+  const searchMessages = async () => {
+    if (searchKeyword.trim()) {
+      try {
+        const response = await apiClient.get(
+          `/api/messages/room/${roomId}/search?keyword=${encodeURIComponent(searchKeyword)}`
+        );
+        setSearchResults(response.data);
+      } catch (error) {
+        console.error('Error searching messages', error);
+      }
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+  };
+
+  return (
+    <div className="chat-room-container">
+      <div className="chat-room-header">
+        <button onClick={() => navigate('/rooms')} className="btn-back">← Về phòng</button>
+        <h2>{room?.name || 'Phòng chat'}</h2>
+        <div className="search-box">
+          <input
+            type="text"
+            placeholder="Tìm kiếm tin nhắn..."
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && searchMessages()}
+          />
+          <button onClick={searchMessages} className="btn-search">Tìm</button>
+        </div>
+      </div>
+
+      {searchResults.length > 0 && (
+        <div className="search-results">
+          <h3>Kết quả tìm kiếm</h3>
+          {searchResults.map(msg => (
+            <div key={msg.id} className="message">
+              <span className="message-sender">{msg.senderUsername}:</span>
+              <span className="message-content">{msg.content}</span>
+              <span className="message-time">{formatTime(msg.timestamp)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="messages-container">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`message ${message.senderId === user.id ? 'own-message' : ''}`}
+          >
+            <div className="message-header">
+              {message.senderAvatarUrl ? (
+                <img 
+                  src={toAbsoluteUrl(message.senderAvatarUrl)} 
+                  alt={message.senderUsername}
+                  className="message-avatar"
+                />
+              ) : (
+                <div className="message-avatar-placeholder">
+                  {message.senderUsername?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
+              <div className="message-info">
+                <span className="message-sender">{message.senderUsername || 'Không rõ'}</span>
+                <span className="message-time">{formatTime(message.timestamp)}</span>
+              </div>
+            </div>
+            <div className="message-content">{message.content}</div>
+            {message.file && (
+              <div className="message-file">
+                {message.file.mimeType && message.file.mimeType.startsWith('image/') ? (
+                  <img
+                    src={toAbsoluteUrl(message.file.downloadUrl)}
+                    alt={message.file.originalName}
+                    style={{ maxWidth: '320px', maxHeight: '240px', borderRadius: '10px' }}
+                    onError={(e) => {
+                      // fallback to link when image fails
+                      e.currentTarget.style.display = 'none'
+                      const link = e.currentTarget.nextElementSibling
+                      if (link) link.style.display = 'inline-flex'
+                    }}
+                  />
+                ) : null}
+                <a 
+                  href={toAbsoluteUrl(message.file.downloadUrl)} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="file-link"
+                  style={{ display: message.file.mimeType && message.file.mimeType.startsWith('image/') ? 'none' : 'inline-flex' }}
+                >
+                  📎 {message.file.originalName} ({(message.file.fileSize / 1024).toFixed(2)} KB)
+                </a>
+              </div>
