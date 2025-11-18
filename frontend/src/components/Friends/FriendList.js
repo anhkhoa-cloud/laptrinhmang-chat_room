@@ -106,3 +106,107 @@ const FriendsList = () => {
         </div>
       );
     }
+if (status.requestStatus === 'PENDING') {
+      // Check if request was sent by current user (user is in sent requests)
+      // For now, show cancel button if pending
+      return (
+        <button onClick={() => cancelFriendRequest(user.id)} className="btn-secondary">
+          Hủy lời mời
+        </button>
+      );
+    }
+
+    if (status.requestStatus === 'ACCEPTED') {
+      return <span className="status-badge">Đã là bạn bè</span>;
+    }
+
+    return (
+      <button onClick={() => sendFriendRequest(user.id)} className="btn-primary">
+        Kết bạn
+      </button>
+    );
+  };
+
+  const getUserStatus = (userObj) => {
+    return userObj.status === 'ONLINE' ? '🟢' : '⚪';
+  };
+
+  return (
+    <div className="friends-container">
+      <div className="friends-header">
+        <button onClick={() => navigate('/rooms')} className="btn-back">
+          ← Về phòng
+        </button>
+        <h2>Bạn bè</h2>
+        <button onClick={() => setShowFriendRequests(!showFriendRequests)} className="btn-secondary">
+          {showFriendRequests ? 'Ẩn' : 'Hiện'} lời mời kết bạn
+        </button>
+      </div>
+
+      {showFriendRequests && <FriendRequests onUpdate={fetchFriends} />}
+
+      <div className="friends-content">
+        <div className="search-section">
+          <h3>Người dùng</h3>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Nhập tên..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && searchUsers()}
+            />
+            <button onClick={searchUsers} className="btn-primary">Tìm kiếm</button>
+          </div>
+
+          {searchResults.length > 0 && (
+            <div className="search-results">
+              <h4>Kết quả tìm kiếm</h4>
+              {searchResults.map((user) => (
+                <div key={user.id} className="user-card">
+                  <div className="user-info">
+                    <span className="user-status">{getUserStatus(user)}</span>
+                    <span className="user-name">{user.username}</span>
+                  </div>
+                  {getStatusButton(user)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="friends-section">
+          <h3>Bạn bè của tôi ({friends.length})</h3>
+          {friends.length === 0 ? (
+            <p>Chưa có bạn bè. Hãy tìm kiếm để kết bạn!</p>
+          ) : (
+            <div className="friends-list">
+              {friends.map((friend) => (
+                <div key={friend.userId} className="friend-card">
+                  <div className="user-info">
+                    <span className="user-status">{friend.status === 'ONLINE' ? '🟢' : '⚪'}</span>
+                    <span className="user-name">{friend.username}</span>
+                  </div>
+                  <div className="friend-actions">
+                    <button
+                      onClick={() => navigate(`/direct-messages?userId=${friend.userId}`)}
+                      className="btn-primary"
+                    >
+                      Nhắn tin
+                    </button>
+                    <button onClick={() => unfriend(friend.userId)} className="btn-danger">
+                      Hủy kết bạn
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default FriendsList;
+
