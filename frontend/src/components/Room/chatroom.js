@@ -116,3 +116,39 @@ const ChatRoom = () => {
       setSelectedFile(file);
     }
   };
+
+  const uploadFile = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await apiClient.post('/api/files/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() && !selectedFile) {
+      return;
+    }
+
+    let fileId = null;
+    if (selectedFile) {
+      try {
+        const fileDto = await uploadFile(selectedFile);
+        fileId = fileDto.id;
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (error) {
+        alert('Failed to upload file. Please try again.');
+        return;
+      }
