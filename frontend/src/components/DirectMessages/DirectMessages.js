@@ -442,3 +442,269 @@ const sendMessage = async () => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString();
   };
+const getUserStatus = (userObj) => {
+    return userObj.status === 'ONLINE' ? '🟢' : '⚪';
+  };
+
+  return (
+    <div className="direct-messages-container">
+      <div className="direct-messages-header">
+        <button onClick={() => navigate('/rooms')} className="btn-back">
+          ← Về phòng
+        </button>
+        <h2>Tin nhắn riêng</h2>
+        <button onClick={() => navigate('/friends')} className="btn-secondary">
+          Quản lý bạn bè
+        </button>
+      </div>
+
+      <div className="direct-messages-content">
+        <div className="users-list">
+          <h3>Danh sách</h3>
+          {users.map(userObj => (
+            <div
+              key={userObj.id}
+              className={`user-item ${selectedUser?.id === userObj.id ? 'selected' : ''}`}
+              onClick={() => setSelectedUser(userObj)}
+            >
+              {userObj.avatarUrl ? (
+                <img 
+                  src={`${toAbsoluteUrl(userObj.avatarUrl)}?t=${Date.now()}`} 
+                  alt={userObj.username}
+                  className="user-avatar"
+                  onError={(e) => {
+                    // If image fails to load, show placeholder
+                    e.target.style.display = 'none';
+                    const placeholder = e.target.nextElementSibling;
+                    if (placeholder && placeholder.classList.contains('user-avatar-placeholder')) {
+                      placeholder.style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
+              {!userObj.avatarUrl && (
+                <div className="user-avatar-placeholder">
+                  {userObj.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
+              <span className="user-status">{getUserStatus(userObj)}</span>
+              <span className="user-name">{userObj.username}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="chat-area">
+          {selectedUser ? (
+            <>
+              <div className="chat-header">
+                <div className="header-left">
+                  {selectedUser.avatarUrl ? (
+                    <img 
+                      src={`${toAbsoluteUrl(selectedUser.avatarUrl)}?t=${Date.now()}`} 
+                      alt={selectedUser.username}
+                      className="chat-header-avatar"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="chat-header-avatar-placeholder">
+                      {selectedUser.username?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
+                  <span className="user-status">{getUserStatus(selectedUser)}</span>
+                  <h3>{selectedUser.username}</h3>
+                </div>
+                <div className="header-actions">
+                  <button
+                    onClick={() => {
+                      if (stompClientRef.current?.connected) {
+                        setCallType('voice');
+                        stompClientRef.current.publish({
+                          destination: '/app/call.initiate',
+                          body: JSON.stringify({
+                            receiverId: selectedUser.id,
+                            callType: 'voice'
+                          }),
+                          headers: {
+                            Authorization: `Bearer ${token}`
+                          }
+                        });
+                        startCall(selectedUser, 'voice');
+                      }
+                    }}
+                    className="btn-call voice-call"
+                    title="Gọi thoại"
+                  >
+                    📞
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (stompClientRef.current?.connected) {
+                        setCallType('video');
+                        stompClientRef.current.publish({
+                          destination: '/app/call.initiate',
+                          body: JSON.stringify({
+                            receiverId: selectedUser.id,
+                            callType: 'video'
+                          }),
+                          headers: {
+                            Authorization: `Bearer ${token}`
+                          }
+                        });
+                        startCall(selectedUser, 'video');
+                      }
+                    }}
+                    className="btn-call video-call"
+                    title="Gọi video"
+                  >
+                    📹
+                  </button>
+                </div>
+              </div>
+
+              <div className="messages-container">
+                {(() => {
+                  // Filter messages to only show those for the current conversation
+                  const conversationMessages = messages.filter(msg => {
+                    const isFromCurrentUser = msg.senderId === user.id || msg.receiverId === user.id;
+                    const isWithSelectedUser = msg.senderId === selectedUser.id || msg.receiverId === selectedUser.id;
+                    return isFromCurrentUser && isWithSelectedUser;
+                  });
+                  
+                  if (conversationMessages.length === 0) {
+                    return (
+                      <div className="no-messages">
+                        <p>Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
+                      </div>
+                    );
+                  }
+                  
+                  return conversationMessages.map((message) => {
+                    const senderAvatarUrl = message.senderId === user.id 
+                      ? null // Will use current user's avatar from profile
+                      : message.senderAvatarUrl;
+                    
+                    return (
+                      <div
+                        key={message.id}
+                        className={`message ${message.senderId === user.id ? 'own-message' : ''}`}
+                      >
+                        <div className="message-header">
+                          {senderAvatarUrl ? (
+                            <img 
+                              src={`${toAbsoluteUrl(senderAvatarUrl)}?t=${Date.now()}`} 
+                              alt={message.senderUsername}
+                              className="message-avatar"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                const placeholder = e.target.nextElementSibling;
+                                if (placeholder && placeholder.classList.contains('message-avatar-placeholder')) {
+                                  placeholder.style.display = 'flex';
+                                }
+                              }}
+                            />
+                          ) : null}
+                          {!senderAvatarUrl && (
+                            <div className="message-avatar-placeholder">
+                              {(message.senderId === user.id ? user.username : message.senderUsername)?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                          )}
+                          <div className="message-info">
+                            <span className="message-sender">
+                              {message.senderId === user.id ? 'You' : (message.senderUsername || 'Unknown')}
+                            </span>
+                            <span className="message-time">{formatTime(message.timestamp)}</span>
+                          </div>
+                        </div>
+                        <div className="message-content">{message.content}</div>
+                        {message.file && (
+                          <div className="message-file">
+                            {message.file.mimeType && message.file.mimeType.startsWith('image/') ? (
+                              <img
+                                src={toAbsoluteUrl(message.file.downloadUrl)}
+                                alt={message.file.originalName}
+                                style={{ maxWidth: '320px', maxHeight: '240px', borderRadius: '10px' }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                  const link = e.currentTarget.nextElementSibling
+                                  if (link) link.style.display = 'inline-flex'
+                                }}
+                              />
+                            ) : null}
+                            <a 
+                              href={toAbsoluteUrl(message.file.downloadUrl)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="file-link"
+                              style={{ display: message.file.mimeType && message.file.mimeType.startsWith('image/') ? 'none' : 'inline-flex' }}
+                            >
+                              📎 {message.file.originalName} ({(message.file.fileSize / 1024).toFixed(2)} KB)
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <div className="message-input-container">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  style={{ display: 'none' }}
+                />
+                {selectedFile && (
+                  <div className="selected-file">
+                    📎 {selectedFile.name}
+                    <button onClick={() => {
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}>✕</button>
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      sendMessage();
+                    }
+                  }}
+                  placeholder="Nhập tin nhắn..."
+                  className="message-input"
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()} 
+                  className="btn-attach"
+                  title="Đính kèm tệp"
+                >
+                  📎
+                </button>
+                <button onClick={sendMessage} className="btn-send">
+                  Gửi
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="no-selection">
+              <p>Chọn một người bạn để bắt đầu trò chuyện</p>
+              <p className="hint">Bạn chỉ có thể nhắn với người đã là bạn bè.</p>
+              <button onClick={() => navigate('/friends')} className="btn-primary" style={{marginTop: '1rem'}}>
+                Tới trang Bạn bè
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DirectMessages;
+
+
