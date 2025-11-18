@@ -53,3 +53,77 @@ const FriendRequests = ({ onUpdate }) => {
       alert('Error: ' + (error.response?.data || error.message));
     }
   };
+
+return (
+    <div className="friend-requests-container">
+      <div className="requests-section">
+        <h3>Pending Requests ({pendingRequests.length})</h3>
+        {pendingRequests.length === 0 ? (
+          <p>No pending friend requests</p>
+        ) : (
+          <div className="requests-list">
+            {pendingRequests.map((request) => (
+              <div key={request.id} className="request-card">
+                <div className="user-info">
+                  <span className="user-name">{request.requesterUsername}</span>
+                  <span className="request-time">
+                    {new Date(request.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="request-actions">
+                  <button
+                    onClick={() => acceptRequest(request.requesterId)}
+                    className="btn-primary"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => rejectRequest(request.requesterId)}
+                    className="btn-danger"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="requests-section">
+        <h3>Sent Requests ({sentRequests.length})</h3>
+        {sentRequests.length === 0 ? (
+          <p>No sent friend requests</p>
+        ) : (
+          <div className="requests-list">
+            {sentRequests.map((request) => (
+              <div key={request.id} className="request-card">
+                <div className="user-info">
+                  <span className="user-name">{request.addresseeUsername}</span>
+                  <span className="request-time">
+                    {new Date(request.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="request-actions">
+                  <button
+                    onClick={() => cancelRequest(request.addresseeId)}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default FriendRequests;
+
+
+
+
+  
