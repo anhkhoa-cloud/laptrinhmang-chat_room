@@ -337,3 +337,108 @@ const connectWebSocket = () => {
     stompClient.activate();
     stompClientRef.current = stompClient;
   };
+const uploadFile = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await apiClient.post('/api/files/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  };
+const sendMessage = async () => {
+    if ((!newMessage.trim() && !selectedFile) || !selectedUser) {
+      return;
+    }
+
+    let fileId = null;
+    if (selectedFile) {
+      try {
+        const fileDto = await uploadFile(selectedFile);
+        fileId = fileDto.id;
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (error) {
+        alert('Failed to upload file. Please try again.');
+        return;
+      }
+    }
+
+    const messageContent = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : '');
+    setNewMessage(''); // Clear input immediately
+
+    // Optimistic update - add message to UI immediately
+    const tempMessage = {
+      id: Date.now(), // Temporary ID
+      content: messageContent,
+      senderId: user.id,
+      senderUsername: user.username,
+      receiverId: selectedUser.id,
+      receiverUsername: selectedUser.username,
+      timestamp: new Date().toISOString(),
+      file: selectedFile ? {
+        id: fileId,
+        originalName: selectedFile.name,
+        fileSize: selectedFile.size,
+        downloadUrl: `/api/files/download/${fileId}`
+      } : null
+    };
+
+    setMessages(prev => [...prev, tempMessage].sort((a, b) => 
+      new Date(a.timestamp) - new Date(b.timestamp)
+    ));
+
+    // Send via WebSocket
+    if (stompClientRef.current?.connected) {
+      try {
+        const messagePayload = {
+          receiverId: selectedUser.id,
+          content: messageContent
+        };
+        if (fileId) {
+          messagePayload.fileId = fileId;
+        }
+        console.log('📤 Sending message via WebSocket:', messagePayload);
+        console.log('   - Destination: /app/direct.sendMessage');
+        console.log('   - STOMP client connected:', stompClientRef.current.connected);
+        
+        stompClientRef.current.publish({
+          destination: '/app/direct.sendMessage',
+          body: JSON.stringify(messagePayload),
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        console.log('✅ Message sent via WebSocket');
+      } catch (error) {
+        console.error('❌ Error sending message:', error);
+        console.error('   - Error stack:', error.stack);
+        // Revert optimistic update on error
+        setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+        setNewMessage(messageContent); // Restore message
+        alert('Failed to send message. Please try again.');
+      }
+    } else {
+      console.error('❌ WebSocket not connected');
+      console.error('   - STOMP client:', stompClientRef.current);
+      console.error('   - Connected:', stompClientRef.current?.connected);
+      // Revert optimistic update
+      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+      setNewMessage(messageContent);
+      alert('Connection lost. Please refresh the page.');
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+  };
