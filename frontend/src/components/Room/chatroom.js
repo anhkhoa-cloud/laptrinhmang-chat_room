@@ -23,3 +23,53 @@ const ChatRoom = () => {
   const typingTimeoutRef = useRef(null);
   const stompClientRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    fetchRoomInfo();
+    fetchMessages();
+    connectWebSocket();
+
+    return () => {
+      if (stompClientRef.current) {
+        stompClientRef.current.deactivate();
+      }
+    };
+  }, [roomId]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const fetchRoomInfo = async () => {
+    try {
+      const response = await apiClient.get('/api/rooms');
+      const roomData = response.data.find(r => r.id === parseInt(roomId));
+      setRoom(roomData);
+    } catch (error) {
+      console.error('Error fetching room info', error);
+    }
+  };
+
+  const fetchMessages = async () => {
+    try {
+      const response = await apiClient.get(`/api/messages/room/${roomId}`);
+      setMessages(response.data.reverse()); // Reverse to show oldest first
+    } catch (error) {
+      console.error('Error fetching messages', error);
+    }
+  };
+
+  const connectWebSocket = () => {
+    const socket = new SockJS(SOCKJS_ENDPOINT);
+    const stompClient = new Client({
+      webSocketFactory: () => socket,
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      connectHeaders: {
+        Authorization: `Bearer ${token}`
+      },
