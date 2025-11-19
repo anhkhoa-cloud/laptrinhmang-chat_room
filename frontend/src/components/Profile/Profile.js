@@ -148,3 +148,34 @@ const Profile = () => {
             style={{ display: 'none' }}
           />
         </div>
+
+ <div className="profile-info">
+          <div className="info-item">
+            <label>Tên người dùng:</label>
+            <span>{profile?.username || 'Không có'}</span>
+          </div>
+          <div className="info-item">
+            <label>Mã người dùng:</label>
+            <span>{profile?.id || 'Không có'}</span>
+          </div>
+          {/* <div className="info-item">
+            <label>Trạng thái:</label>
+            <span className={`status ${profile?.status?.toLowerCase()}`}>
+              {profile?.status || 'OFFLINE'}
+            </span>
+          </div> */}
+          <div className="info-item">
+            <label>Thành viên từ:</label>
+            <span>
+              {profile?.createdAt 
+                ? new Date(profile.createdAt).toLocaleDateString()
+                : 'Không có'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Profile;
