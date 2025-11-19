@@ -92,3 +92,22 @@
   z-index: 1;
   display: flex;
 }
+
+.avatar-container:hover {
+  transform: scale(1.08);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+}
+
+.avatar-image {
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 60px;
+  font-weight: bold;
+}
