@@ -14,3 +14,14 @@ const Profile = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await apiClient.get('/api/users/profile');
+      setProfile(response.data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
