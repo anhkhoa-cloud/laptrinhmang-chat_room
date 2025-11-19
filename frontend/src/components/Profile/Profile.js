@@ -25,3 +25,57 @@ const Profile = () => {
       setLoading(false);
     }
   };
+
+   const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      uploadAvatar(file);
+    }
+  };
+
+  const uploadAvatar = async (file) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await apiClient.post('/api/users/avatar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      console.log('Upload response:', response.data);
+      
+      // Update profile with new avatar - ensure avatarUrl is set
+      const updatedProfile = response.data;
+      console.log('Updated profile avatarUrl:', updatedProfile.avatarUrl);
+      
+      // Immediately update profile with new data
+      setProfile(updatedProfile);
+      
+      // Also fetch fresh data from server to ensure consistency
+      setTimeout(() => {
+        fetchProfile();
+      }, 200);
+      
+      alert('Avatar updated successfully!');
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      console.error('Error response:', error.response?.data);
+      alert('Failed to upload avatar. Please try again.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
