@@ -111,3 +111,50 @@
   font-size: 60px;
   font-weight: bold;
 }
+
+.avatar-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+  color: white;
+  padding: 1.25rem;
+  text-align: center;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  border-radius: 0 0 50% 50%;
+  pointer-events: none;
+}
+
+.avatar-overlay button {
+  pointer-events: auto;
+}
+
+.avatar-container:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.btn-upload-avatar {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.btn-upload-avatar:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.btn-upload-avatar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
