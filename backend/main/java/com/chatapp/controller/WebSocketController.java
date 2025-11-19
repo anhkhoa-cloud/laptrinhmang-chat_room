@@ -197,3 +197,163 @@ public class WebSocketController {
         
         System.out.println("✅ Successfully sent direct message from user " + senderId + " to user " + receiverId + " via WebSocket");
     }
+@MessageMapping("/user.status")
+    public void updateUserStatus(@Payload Map<String, Object> payload, Principal principal) {
+        Long userId = getUserIdFromPrincipal(principal);
+        if (userId == null) {
+            return;
+        }
+        String status = payload.get("status").toString();
+        
+        userService.updateUserStatus(userId, 
+            status.equals("ONLINE") ? 
+                com.chatapp.model.User.UserStatus.ONLINE : 
+                com.chatapp.model.User.UserStatus.OFFLINE);
+
+        Map<String, Object> statusUpdate = new HashMap<>();
+        statusUpdate.put("userId", userId);
+        statusUpdate.put("status", status);
+
+        messagingTemplate.convertAndSend("/topic/userStatus", statusUpdate);
+    }
+
+    // WebRTC Call Signaling
+    @MessageMapping("/call.initiate")
+    public void initiateCall(@Payload Map<String, Object> payload, Principal principal) {
+        Long callerId = getUserIdFromPrincipal(principal);
+        if (callerId == null) {
+            return;
+        }
+        
+        Long receiverId = Long.parseLong(payload.get("receiverId").toString());
+        String callType = payload.get("callType").toString(); // "voice" or "video"
+        
+        System.out.println("📞 Call initiated from " + callerId + " to " + receiverId + " (type: " + callType + ")");
+        
+        Map<String, Object> callOffer = new HashMap<>();
+        callOffer.put("type", "call-offer");
+        callOffer.put("callerId", callerId);
+        callOffer.put("callType", callType);
+        callOffer.put("callerUsername", userRepository.findById(callerId)
+            .map(user -> user.getUsername())
+            .orElse("Unknown"));
+        
+        // Send call offer to receiver
+        messagingTemplate.convertAndSendToUser(receiverId.toString(), "/queue/call", callOffer);
+    }
+
+    @MessageMapping("/call.accept")
+    public void acceptCall(@Payload Map<String, Object> payload, Principal principal) {
+        Long receiverId = getUserIdFromPrincipal(principal);
+        if (receiverId == null) {
+            return;
+        }
+        
+        Long callerId = Long.parseLong(payload.get("callerId").toString());
+        
+        System.out.println("✅ Call accepted by " + receiverId + " from " + callerId);
+        
+        Map<String, Object> callAccept = new HashMap<>();
+        callAccept.put("type", "call-accepted");
+        callAccept.put("receiverId", receiverId);
+        callAccept.put("receiverUsername", userRepository.findById(receiverId)
+            .map(user -> user.getUsername())
+            .orElse("Unknown"));
+        
+        // Send acceptance to caller
+        messagingTemplate.convertAndSendToUser(callerId.toString(), "/queue/call", callAccept);
+    }
+
+    @MessageMapping("/call.reject")
+    public void rejectCall(@Payload Map<String, Object> payload, Principal principal) {
+        Long receiverId = getUserIdFromPrincipal(principal);
+        if (receiverId == null) {
+            return;
+        }
+        
+        Long callerId = Long.parseLong(payload.get("callerId").toString());
+        
+        System.out.println("❌ Call rejected by " + receiverId + " from " + callerId);
+        
+        Map<String, Object> callReject = new HashMap<>();
+        callReject.put("type", "call-rejected");
+        callReject.put("receiverId", receiverId);
+        
+        // Send rejection to caller
+        messagingTemplate.convertAndSendToUser(callerId.toString(), "/queue/call", callReject);
+    }
+
+    @MessageMapping("/call.end")
+    public void endCall(@Payload Map<String, Object> payload, Principal principal) {
+        Long userId = getUserIdFromPrincipal(principal);
+        if (userId == null) {
+            return;
+        }
+        
+        Long otherUserId = Long.parseLong(payload.get("otherUserId").toString());
+        
+        System.out.println("📴 Call ended by " + userId);
+        
+        Map<String, Object> callEnd = new HashMap<>();
+        callEnd.put("type", "call-ended");
+        callEnd.put("endedBy", userId);
+        
+        // Send end call signal to other user
+        messagingTemplate.convertAndSendToUser(otherUserId.toString(), "/queue/call", callEnd);
+    }
+
+    @MessageMapping("/call.offer")
+    public void handleCallOffer(@Payload Map<String, Object> payload, Principal principal) {
+        Long fromUserId = getUserIdFromPrincipal(principal);
+        if (fromUserId == null) {
+            return;
+        }
+        
+        Long toUserId = Long.parseLong(payload.get("toUserId").toString());
+        String offer = payload.get("offer").toString();
+        
+        Map<String, Object> offerMessage = new HashMap<>();
+        offerMessage.put("type", "webrtc-offer");
+        offerMessage.put("fromUserId", fromUserId);
+        offerMessage.put("offer", offer);
+        
+        messagingTemplate.convertAndSendToUser(toUserId.toString(), "/queue/call", offerMessage);
+    }
+
+    @MessageMapping("/call.answer")
+    public void handleCallAnswer(@Payload Map<String, Object> payload, Principal principal) {
+        Long fromUserId = getUserIdFromPrincipal(principal);
+        if (fromUserId == null) {
+            return;
+        }
+        
+        Long toUserId = Long.parseLong(payload.get("toUserId").toString());
+        String answer = payload.get("answer").toString();
+        
+        Map<String, Object> answerMessage = new HashMap<>();
+        answerMessage.put("type", "webrtc-answer");
+        answerMessage.put("fromUserId", fromUserId);
+        answerMessage.put("answer", answer);
+        
+        messagingTemplate.convertAndSendToUser(toUserId.toString(), "/queue/call", answerMessage);
+    }
+
+    @MessageMapping("/call.ice-candidate")
+    public void handleIceCandidate(@Payload Map<String, Object> payload, Principal principal) {
+        Long fromUserId = getUserIdFromPrincipal(principal);
+        if (fromUserId == null) {
+            return;
+        }
+        
+        Long toUserId = Long.parseLong(payload.get("toUserId").toString());
+        Map<String, Object> candidate = (Map<String, Object>) payload.get("candidate");
+        
+        Map<String, Object> candidateMessage = new HashMap<>();
+        candidateMessage.put("type", "webrtc-ice-candidate");
+        candidateMessage.put("fromUserId", fromUserId);
+        candidateMessage.put("candidate", candidate);
+        
+        messagingTemplate.convertAndSendToUser(toUserId.toString(), "/queue/call", candidateMessage);
+    }
+}
+
