@@ -79,3 +79,19 @@ const Profile = () => {
       }
     }
   };
+
+   const getAvatarUrl = () => {
+    if (profile?.avatarUrl) {
+      // Add timestamp to prevent caching issues
+      const timestamp = new Date().getTime();
+      const url = `${toAbsoluteUrl(profile.avatarUrl)}?t=${timestamp}`;
+      console.log('Avatar URL:', url);
+      return url;
+    }
+    console.log('No avatar URL in profile:', profile);
+    return null;
+  };
+
+  if (loading) {
+    return <div className="profile-container">Đang tải...</div>;
+  }
