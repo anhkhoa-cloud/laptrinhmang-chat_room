@@ -95,3 +95,56 @@ const Profile = () => {
   if (loading) {
     return <div className="profile-container">Đang tải...</div>;
   }
+
+  return (
+    <div className="profile-container">
+      <div className="profile-header">
+        <button onClick={() => navigate('/rooms')} className="btn-back">
+          ← Quay lại
+        </button>
+        <h2>Hồ sơ của tôi</h2>
+      </div>
+
+      <div className="profile-content">
+        <div className="avatar-section">
+          <div className="avatar-container">
+            {getAvatarUrl() ? (
+              <img 
+                key={profile?.avatarUrl || 'avatar'} 
+                src={getAvatarUrl()} 
+                alt="Avatar" 
+                className="avatar-image"
+                style={{ display: 'block' }}
+                onLoad={() => {
+                  console.log('✅ Avatar image loaded successfully');
+                }}
+                onError={(e) => {
+                  console.error('❌ Avatar image failed to load:', e.target.src);
+                  // If image fails to load, hide image
+                  e.target.style.display = 'none';
+                }}
+              />
+            ) : null}
+            {!getAvatarUrl() && (
+              <div className="avatar-placeholder" style={{ display: 'flex' }}>
+                {profile?.username?.charAt(0).toUpperCase() || 'U'}
+              </div>
+            )}
+            <div className="avatar-overlay">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="btn-upload-avatar"
+                disabled={uploading}
+              >
+                {uploading ? 'Đang tải...' : '📷 Đổi ảnh đại diện'}
+              </button>
+            </div>
+          </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*"
+            style={{ display: 'none' }}
+          />
+        </div>
