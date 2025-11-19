@@ -1,0 +1,85 @@
+package com.chatapp.controller;
+
+import com.chatapp.dto.DirectMessageDto;
+import com.chatapp.dto.FileDto;
+import com.chatapp.model.DirectMessage;
+import com.chatapp.repository.UserRepository;
+import com.chatapp.service.DirectMessageService;
+import com.chatapp.service.FileService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/direct-messages")
+@CrossOrigin(origins = {"http://localhost:3000","*"})
+public class DirectMessageController {
+    @Autowired
+    private DirectMessageService directMessageService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private FileService fileService;
+
+    @GetMapping("/conversation/{otherUserId}")
+    public ResponseEntity<?> getConversation(@PathVariable Long otherUserId, Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        
+        // Check if users are friends
+        if (!directMessageService.areFriends(userId, otherUserId)) {
+            return ResponseEntity.badRequest().body("You can only view messages with friends");
+        }
+        
+        List<DirectMessage> messages = directMessageService.getConversation(userId, otherUserId);
+        List<DirectMessageDto> messageDtos = messages.stream().map(message -> {
+            DirectMessageDto dto = new DirectMessageDto();
+            dto.setId(message.getId());
+            dto.setContent(message.getContent());
+            dto.setSenderId(message.getSenderId());
+            dto.setReceiverId(message.getReceiverId());
+            dto.setTimestamp(message.getTimestamp());
+            if (message.getSenderId() != null) {
+                userRepository.findById(message.getSenderId())
+                    .ifPresent(user -> {
+                        dto.setSenderUsername(user.getUsername());
+                        dto.setSenderAvatarUrl(user.getAvatarUrl());
+                    });
+            } else {
+                dto.setSenderUsername("Deleted User");
+            }
+            if (message.getReceiverId() != null) {
+                userRepository.findById(message.getReceiverId())
+                    .ifPresent(user -> {
+                        dto.setReceiverUsername(user.getUsername());
+                        dto.setReceiverAvatarUrl(user.getAvatarUrl());
+                    });
+            } else {
+                dto.setReceiverUsername("Deleted User");
+            }
+            // Add file info if exists
+            if (message.getFileId() != null) {
+                try {
+                    com.chatapp.model.File file = fileService.getFile(message.getFileId());
+                    FileDto fileDto = new FileDto();
+                    fileDto.setId(file.getId());
+                    fileDto.setOriginalName(file.getOriginalName());
+                    fileDto.setFileSize(file.getFileSize());
+                    fileDto.setMimeType(file.getMimeType());
+                    fileDto.setDownloadUrl("/api/files/download/" + file.getId());
+                    dto.setFile(fileDto);
+                } catch (Exception e) {
+                    // File not found, skip
+                }
+            }
+            return dto;
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(messageDtos);
+    }
+}
+
